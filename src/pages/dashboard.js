@@ -2,22 +2,22 @@ import { api } from '../api.js';
 import { posBadge, statusBadge, starsDisplay } from '../main.js';
 
 export async function renderDashboard(container) {
-    container.innerHTML = '<div class="text-center text-muted mt-lg">Loading dashboard...</div>';
+  container.innerHTML = '<div class="text-center text-muted mt-lg">Loading dashboard...</div>';
 
-    try {
-        const [players, matches] = await Promise.all([api.getPlayers(), api.getMatches()]);
+  try {
+    const [players, matches] = await Promise.all([api.getPlayers(), api.getMatches()]);
 
-        const upcoming = matches.filter((m) => m.status === 'upcoming');
-        const completed = matches.filter((m) => m.status === 'completed');
-        const nextMatch = upcoming[0];
+    const upcoming = matches.filter((m) => m.status === 'upcoming');
+    const completed = matches.filter((m) => m.status === 'completed');
+    const nextMatch = upcoming[0];
 
-        // Sort players by avg_score for top performers
-        const topPlayers = [...players]
-            .filter((p) => p.matches_played > 0)
-            .sort((a, b) => b.avg_score - a.avg_score)
-            .slice(0, 5);
+    // Sort players by avg_score for top performers
+    const topPlayers = [...players]
+      .filter((p) => p.matches_played > 0)
+      .sort((a, b) => b.avg_score - a.avg_score)
+      .slice(0, 5);
 
-        container.innerHTML = `
+    container.innerHTML = `
       <div class="section-header">
         <h2 class="section-title">📊 Dashboard</h2>
       </div>
@@ -53,81 +53,121 @@ export async function renderDashboard(container) {
           ${nextMatch ? statusBadge(nextMatch.status) : ''}
         </div>
         ${nextMatch
-                ? `
-          <div class="match-title">${nextMatch.title}</div>
+        ? `
+          <div class="match-title">
+            ${nextMatch.title}
+          </div>
           <div class="match-meta mt-sm">
             <span>📅 ${formatDate(nextMatch.date)}</span>
             <span>⏰ ${nextMatch.time}</span>
             ${nextMatch.location ? `<span>📍 ${nextMatch.location}</span>` : ''}
             <span>👥 ${nextMatch.player_count || 0} players</span>
+            ${nextMatch.score_a !== null ? `<div class="match-score-badge">${nextMatch.score_a} – ${nextMatch.score_b}</div>` : ''}
           </div>
           <div class="mt-md">
             <button class="btn btn-primary" onclick="appNavigate('matches')">View Match Details →</button>
           </div>
         `
-                : `
+        : `
           <div class="empty-state">
             <div class="empty-icon">🏟️</div>
             <p>No upcoming matches</p>
             <button class="btn btn-primary" onclick="appNavigate('matches')">Create a Match</button>
           </div>
         `
-            }
+      }
       </div>
 
-      <!-- Top Performers -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title">🏆 Top Performers</h3>
-        </div>
-        ${topPlayers.length > 0
-                ? `
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Player</th>
-                  <th>Position</th>
-                  <th>Rating</th>
-                  <th>Avg Score</th>
-                  <th>Matches</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${topPlayers
-                    .map(
-                        (p, i) => `
+      <div style="display:grid;grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));gap:var(--space-lg)">
+        <!-- Top Performers -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">🏆 Top Performers</h3>
+          </div>
+          ${topPlayers.length > 0
+        ? `
+            <div class="table-wrap">
+              <table>
+                <thead>
                   <tr>
-                    <td><strong>${i + 1}</strong></td>
-                    <td><strong>${p.name}</strong></td>
-                    <td>${posBadge(p.position)}</td>
-                    <td class="text-warning">${starsDisplay(p.rating)}</td>
-                    <td><strong style="color:var(--accent)">${p.avg_score.toFixed(1)}</strong></td>
-                    <td>${p.matches_played}</td>
+                    <th>Player</th>
+                    <th>Avg Score</th>
+                    <th>Matches</th>
                   </tr>
-                `
-                    )
-                    .join('')}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  ${topPlayers
+          .map(
+            (p, i) => `
+                    <tr>
+                      <td><strong>${p.name}</strong><br><small class="text-muted">${posBadge(p.position)}</small></td>
+                      <td><strong style="color:var(--accent)">${p.avg_score.toFixed(1)}</strong></td>
+                      <td>${p.matches_played}</td>
+                    </tr>
+                  `
+          )
+          .join('')}
+                </tbody>
+              </table>
+            </div>
+          `
+        : `
+            <div class="empty-state">
+              <div class="empty-icon">⭐</div>
+              <p>No evaluations yet.</p>
+            </div>
+          `
+      }
+        </div>
+
+        <!-- Top Scorers -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">⚽ Top Scorers</h3>
           </div>
-        `
-                : `
-          <div class="empty-state">
-            <div class="empty-icon">⭐</div>
-            <p>No evaluations yet. Complete a match and rate players to see top performers.</p>
-          </div>
-        `
-            }
+          ${players.some(p => (p.goals || 0) > 0)
+        ? `
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Player</th>
+                    <th>Goals</th>
+                    <th>Assists</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${[...players]
+          .filter(p => (p.goals || 0) > 0 || (p.assists || 0) > 0)
+          .sort((a, b) => (b.goals || 0) - (a.goals || 0) || (b.assists || 0) - (a.assists || 0))
+          .slice(0, 5)
+          .map(p => `
+                    <tr>
+                      <td><strong>${p.name}</strong></td>
+                      <td><span class="stat-pill stat-pill-goals">⚽ ${p.goals || 0}</span></td>
+                      <td><span class="stat-pill stat-pill-assists">👟 ${p.assists || 0}</span></td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            `
+        : `
+            <div class="empty-state">
+              <div class="empty-icon">⚽</div>
+              <p>No goals recorded yet.</p>
+            </div>
+            `
+      }
+        </div>
       </div>
     `;
-    } catch (err) {
-        container.innerHTML = `<div class="empty-state"><p class="text-danger">Error: ${err.message}</p></div>`;
-    }
+  } catch (err) {
+    container.innerHTML = `<div class="empty-state"><p class="text-danger">Error: ${err.message}</p></div>`;
+  }
 }
 
 function formatDate(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }

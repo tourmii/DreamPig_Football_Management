@@ -31,6 +31,10 @@ CREATE TABLE IF NOT EXISTS matches (
   team_b_json JSONB DEFAULT '[]',
   qr_image_path TEXT,
   fee REAL DEFAULT 0,
+  score_a INT DEFAULT NULL,
+  score_b INT DEFAULT NULL,
+  team_a_name TEXT NOT NULL DEFAULT 'Team A',
+  team_b_name TEXT NOT NULL DEFAULT 'Team B',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -39,8 +43,18 @@ CREATE TABLE IF NOT EXISTS match_players (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   match_id BIGINT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
   player_id BIGINT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-  team TEXT CHECK (team IN ('A', 'B')),
+  team TEXT CHECK (team IN ('A', 'B', 'SUB_A', 'SUB_B')),
   available BOOLEAN NOT NULL DEFAULT true,
+  UNIQUE(match_id, player_id)
+);
+
+-- Match player stats (goals, assists)
+CREATE TABLE IF NOT EXISTS match_player_stats (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  match_id BIGINT NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+  player_id BIGINT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  goals INT NOT NULL DEFAULT 0,
+  assists INT NOT NULL DEFAULT 0,
   UNIQUE(match_id, player_id)
 );
 
@@ -75,6 +89,7 @@ CREATE TABLE IF NOT EXISTS payments (
 ALTER TABLE players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE match_players ENABLE ROW LEVEL SECURITY;
+ALTER TABLE match_player_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE evaluations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 
@@ -82,6 +97,7 @@ ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all on players" ON players FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on matches" ON matches FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on match_players" ON match_players FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all on match_player_stats" ON match_player_stats FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on evaluations" ON evaluations FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all on payments" ON payments FOR ALL USING (true) WITH CHECK (true);
 

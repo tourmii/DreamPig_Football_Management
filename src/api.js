@@ -105,6 +105,16 @@ export const api = {
             .select('*, players(name)')
             .eq('match_id', id);
 
+        const { data: stats } = await supabase
+            .from('match_player_stats')
+            .select('*')
+            .eq('match_id', id);
+
+        const statsMap = {};
+        (stats || []).forEach(s => {
+            statsMap[s.player_id] = s;
+        });
+
         return {
             ...match,
             players: (players || []).map((mp) => ({
@@ -118,6 +128,8 @@ export const api = {
                 dribbling: mp.players?.dribbling,
                 stamina: mp.players?.stamina,
                 avg_score: mp.players?.avg_score,
+                goals: statsMap[mp.player_id]?.goals || 0,
+                assists: statsMap[mp.player_id]?.assists || 0,
             })),
             evaluations: (evaluations || []).map((e) => ({ ...e, name: e.players?.name })),
             payments: (payments || []).map((p) => ({ ...p, name: p.players?.name })),
@@ -181,6 +193,31 @@ export const api = {
         return data;
     },
 
+    async saveMatchResult(matchId, scoreA, scoreB) {
+        const { error } = await supabase
+            .from('matches')
+            .update({ score_a: scoreA, score_b: scoreB, status: 'completed' })
+            .eq('id', matchId);
+        if (error) throw new Error(error.message);
+        return { success: true };
+    },
+
+    async savePlayerStats(matchId, stats) {
+        // stats: [{ player_id, goals, assists }, ...]
+        const rows = stats.map(s => ({
+            match_id: matchId,
+            player_id: s.player_id,
+            goals: s.goals || 0,
+            assists: s.assists || 0
+        }));
+
+        const { error } = await supabase
+            .from('match_player_stats')
+            .upsert(rows, { onConflict: 'match_id,player_id' });
+        if (error) throw new Error(error.message);
+        return { success: true };
+    },
+
     // ========== TEAMS ==========
 
     async generateTeams(matchId) {
@@ -211,24 +248,23 @@ export const api = {
         return { scenarios, playerCount: players.length };
     },
 
-    async saveTeams(matchId, teamA, teamB) {
+    async saveTeams(matchId, teamA, teamB, subA = [], subB = []) {
         // Clear existing
         await supabase.from('match_players').update({ team: null }).eq('match_id', matchId);
 
-        // Set team A
-        for (const pid of teamA) {
-            await supabase.from('match_players').update({ team: 'A' }).eq('match_id', matchId).eq('player_id', pid);
+        // Batch update instead of loops for better performance
+        if (teamA.length > 0) {
+            await supabase.from('match_players').update({ team: 'A' }).eq('match_id', matchId).in('player_id', teamA);
         }
-        // Set team B
-        for (const pid of teamB) {
-            await supabase.from('match_players').update({ team: 'B' }).eq('match_id', matchId).eq('player_id', pid);
+        if (teamB.length > 0) {
+            await supabase.from('match_players').update({ team: 'B' }).eq('match_id', matchId).in('player_id', teamB);
         }
-
-        // Save to match record
-        await supabase
-            .from('matches')
-            .update({ team_a_json: teamA, team_b_json: teamB })
-            .eq('id', matchId);
+        if (subA.length > 0) {
+            await supabase.from('match_players').update({ team: 'SUB_A' }).eq('match_id', matchId).in('player_id', subA);
+        }
+        if (subB.length > 0) {
+            await supabase.from('match_players').update({ team: 'SUB_B' }).eq('match_id', matchId).in('player_id', subB);
+        }
 
         return { success: true };
     },
@@ -349,14 +385,19 @@ function generateBalancedTeams(players) {
 
     const scenarios = [];
 
+    // Limit to top 14 players if more registered
+    const sortedAll = [...scored].sort((a, b) => b.compositeScore - a.compositeScore);
+    const activePlayers = sortedAll.slice(0, 14);
+    const subs = sortedAll.slice(14);
+
     // Scenario 1: Snake draft by rating
-    scenarios.push(snakeDraft([...scored], 'rating', 'Balanced by Rating'));
+    scenarios.push(snakeDraft([...activePlayers], 'rating', 'Balanced by Rating', subs));
 
     // Scenario 2: Snake draft by composite score
-    scenarios.push(snakeDraft([...scored], 'compositeScore', 'Balanced by Skill'));
+    scenarios.push(snakeDraft([...activePlayers], 'compositeScore', 'Balanced by Skill', subs));
 
     // Scenario 3: Position-balanced draft
-    scenarios.push(positionBalancedDraft([...scored]));
+    scenarios.push(positionBalancedDraft([...activePlayers], subs));
 
     // Deduplicate
     const unique = [];
@@ -371,7 +412,7 @@ function generateBalancedTeams(players) {
     return unique;
 }
 
-function snakeDraft(players, sortKey, name) {
+function snakeDraft(players, sortKey, name, substitutes = []) {
     players.sort((a, b) => b[sortKey] - a[sortKey]);
     const teamA = [], teamB = [];
 
@@ -384,17 +425,25 @@ function snakeDraft(players, sortKey, name) {
         }
     }
 
+    // Split substitutes too
+    const subA = [], subB = [];
+    for (let i = 0; i < substitutes.length; i++) {
+        (i % 2 === 0 ? subA : subB).push(substitutes[i]);
+    }
+
     return {
         name,
         teamA,
         teamB,
+        subA,
+        subB,
         teamAScore: calcTeamScore(teamA),
         teamBScore: calcTeamScore(teamB),
         diff: Math.abs(calcTeamScore(teamA) - calcTeamScore(teamB)).toFixed(2),
     };
 }
 
-function positionBalancedDraft(players) {
+function positionBalancedDraft(players, substitutes = []) {
     const byPosition = {};
     for (const p of players) {
         if (!byPosition[p.position]) byPosition[p.position] = [];
@@ -409,10 +458,18 @@ function positionBalancedDraft(players) {
         }
     }
 
+    // Split substitutes too
+    const subA = [], subB = [];
+    for (let i = 0; i < substitutes.length; i++) {
+        (i % 2 === 0 ? subA : subB).push(substitutes[i]);
+    }
+
     return {
         name: 'Position Balanced',
         teamA,
         teamB,
+        subA,
+        subB,
         teamAScore: calcTeamScore(teamA),
         teamBScore: calcTeamScore(teamB),
         diff: Math.abs(calcTeamScore(teamA) - calcTeamScore(teamB)).toFixed(2),
