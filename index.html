@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DreamPig Football — Team Manager</title>
+  <meta name="description" content="Football Team Management App for casual matches among friends. Manage players, balance teams, track performance and payments." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <span class="brand-icon">⚽</span>
+        <h1 class="brand-title">DreamPig<span class="brand-accent"> Football</span></h1>
+      </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="app-nav" id="main-nav">
+      <button class="nav-btn active" data-page="dashboard">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Dashboard</span>
+      </button>
+      <button class="nav-btn" data-page="players">
+        <span class="nav-icon">👥</span>
+        <span class="nav-label">Players</span>
+      </button>
+      <button class="nav-btn" data-page="matches">
+        <span class="nav-icon">🏟️</span>
+        <span class="nav-label">Matches</span>
+      </button>
+      <button class="nav-btn" data-page="evaluate">
+        <span class="nav-icon">⭐</span>
+        <span class="nav-label">Evaluate</span>
+      </button>
+      <button class="nav-btn" data-page="payments">
+        <span class="nav-icon">💳</span>
+        <span class="nav-label">Payments</span>
+      </button>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="app-main" id="main-content">
+      <!-- Pages rendered here by JS -->
+    </main>
+  </div>
+
+  <!-- Modal overlay -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-title"></h2>
+        <button class="modal-close" id="modal-close">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Toast notifications -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
